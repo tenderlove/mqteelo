@@ -4,20 +4,38 @@ require "uri"
 require "fileutils"
 require "erb"
 
-handler = ERB.new(<<-eot, trim_mode: '-')
-def handle io, id, flags
-<%- types.each_with_index do |type, i| -%>
-  <%= i == 0 ? "if" : "elseif" %> id == <%= sprintf("%#04x", type.value) %> then
-  <%- if type.flags -%>
-    raise "wrong flags" unless flags == <%= sprintf("%#04x", type.flags) %>
-  <%- end -%>
-    handle_<%= type.name.downcase %>(io, flags)
+class ReasonTemplate
+TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
+  module Reasons
+<%- reasons.each do |reason| -%>
+    <%= reason.name.upcase.sub(/-/, '').tr(' ', '_') %> = <%= sprintf("%#04x", reason.value) %>
 <%- end -%>
-  else
-    raise "unknown id \#{id}"
+  end
+eot
+  def self.result reasons
+    TEMPLATE.result binding
   end
 end
+
+class Dispatch
+TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
+  def handle io, id, flags
+  <%- types.each_with_index do |type, i| -%>
+    <%= i == 0 ? "if" : "elseif" %> id == <%= sprintf("%#04x", type.value) %>
+    <%- if type.flags -%>
+      raise "wrong flags" unless flags == <%= sprintf("%#04x", type.flags) %>
+    <%- end -%>
+      handle_<%= type.name.downcase %>(io, flags)
+  <%- end -%>
+    else
+      raise "unknown id \#{id}"
+    end
+  end
 eot
+  def self.result types
+    TEMPLATE.result binding
+  end
+end
 
 class PropertyTemplate
   LUT = {
@@ -30,16 +48,16 @@ class PropertyTemplate
     "Variable Byte Integer" => "read_varint(io)",
   }
   TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
-<%- props.each do |type, values| -%>
-def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> io, id
-  <%- values.each_with_index do |val, i| -%>
-  <%= i == 0 ? "if" : "elseif" %> id == <%= sprintf("%#04x", val.ident) %> then # <%= val.name %>
-    <%= LUT.fetch(val.type) %>
-  <%- end -%>
-  else
-    raise "wrong property \#{id}"
+  <%- props.each do |type, values| -%>
+  def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> io, id
+    <%- values.each_with_index do |val, i| -%>
+    <%= i == 0 ? "if" : "elseif" %> id == <%= sprintf("%#04x", val.ident) %> # <%= val.name %>
+      <%= LUT.fetch(val.type) %>
+    <%- end -%>
+    else
+      raise "wrong property \#{id}"
+    end
   end
-end
 
 <%- end -%>
 eot
@@ -86,7 +104,7 @@ else
   etag, response_body = Marshal.load(File.binread(cache_file))
 end
 
-doc = Nokogiri::HTML.parse response_body
+DOC = Nokogiri::HTML.parse response_body
 
 PacketType = Struct.new(:name, :value, :description, :flags)
 Property = Struct.new(:ident, :name, :type, :packets)
@@ -119,7 +137,7 @@ def properties doc
 end
 
 def reasons doc
-  node = doc.css("a[name='ConnectReasonCode']").first.parent
+  node = doc.css("a[name='_Ref486836950']").first.parent
   while node.name != "table"
     node = node.next_sibling
   end
@@ -143,17 +161,3 @@ def flag_bits doc
     [type, bit3.to_i << 3 | bit2.to_i << 2 | bit1.to_i << 1 | bit0.to_i]
   }
 end
-
-def print_props props, handler
-  puts handler.result(props)
-end
-
-types = packet_types doc
-props = properties doc
-rs = reasons(doc)
-properties_by_type = Hash.new { |h,k| h[k] = [] }
-props.each { |p| p.packets.each { |type| properties_by_type[type] << p } }
-p properties_by_type.keys
-print_props(properties_by_type, PropertyTemplate)
-
-#puts handler.result(binding)
