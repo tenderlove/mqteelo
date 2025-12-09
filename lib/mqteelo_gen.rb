@@ -1,4 +1,4 @@
-class MQTeelo
+class MQTeelo::Server
   module Reasons
     SUCCESS = 0000
     NORMAL_DISCONNECTION = 0000
@@ -47,268 +47,564 @@ class MQTeelo
     WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED = 0xa2
   end
 
-  def handle io, id, flags
+  private
+
+  def _handle io, id, flags, len
     if id == 0x01
       raise "wrong flags" unless flags == 0000
-      handle_connect(io, flags)
-    elseif id == 0x02
+      handle_connect(io, flags, len)
+    elsif id == 0x02
       raise "wrong flags" unless flags == 0000
-      handle_connack(io, flags)
-    elseif id == 0x03
-      handle_publish(io, flags)
-    elseif id == 0x04
+      handle_connack(io, flags, len)
+    elsif id == 0x03
+      handle_publish(io, flags, len)
+    elsif id == 0x04
       raise "wrong flags" unless flags == 0000
-      handle_puback(io, flags)
-    elseif id == 0x05
+      handle_puback(io, flags, len)
+    elsif id == 0x05
       raise "wrong flags" unless flags == 0000
-      handle_pubrec(io, flags)
-    elseif id == 0x06
+      handle_pubrec(io, flags, len)
+    elsif id == 0x06
       raise "wrong flags" unless flags == 0x02
-      handle_pubrel(io, flags)
-    elseif id == 0x07
+      handle_pubrel(io, flags, len)
+    elsif id == 0x07
       raise "wrong flags" unless flags == 0000
-      handle_pubcomp(io, flags)
-    elseif id == 0x08
+      handle_pubcomp(io, flags, len)
+    elsif id == 0x08
       raise "wrong flags" unless flags == 0x02
-      handle_subscribe(io, flags)
-    elseif id == 0x09
+      handle_subscribe(io, flags, len)
+    elsif id == 0x09
       raise "wrong flags" unless flags == 0000
-      handle_suback(io, flags)
-    elseif id == 0x0a
+      handle_suback(io, flags, len)
+    elsif id == 0x0a
       raise "wrong flags" unless flags == 0x02
-      handle_unsubscribe(io, flags)
-    elseif id == 0x0b
+      handle_unsubscribe(io, flags, len)
+    elsif id == 0x0b
       raise "wrong flags" unless flags == 0000
-      handle_unsuback(io, flags)
-    elseif id == 0x0c
+      handle_unsuback(io, flags, len)
+    elsif id == 0x0c
       raise "wrong flags" unless flags == 0000
-      handle_pingreq(io, flags)
-    elseif id == 0x0d
+      handle_pingreq(io, flags, len)
+    elsif id == 0x0d
       raise "wrong flags" unless flags == 0000
-      handle_pingresp(io, flags)
-    elseif id == 0x0e
+      handle_pingresp(io, flags, len)
+    elsif id == 0x0e
       raise "wrong flags" unless flags == 0000
-      handle_disconnect(io, flags)
-    elseif id == 0x0f
+      handle_disconnect(io, flags, len)
+    elsif id == 0x0f
       raise "wrong flags" unless flags == 0000
-      handle_auth(io, flags)
+      handle_auth(io, flags, len)
     else
       raise "unknown id #{id}"
     end
   end
 
-  private
+  def publish_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x01 # Payload Format Indicator
+        val = io.readbyte
+        read += 1
 
-  def publish_properties io, id
-    if id == 0x01 # Payload Format Indicator
-      io.getbyte
-    elseif id == 0x02 # Message Expiry Interval
-      io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte
-    elseif id == 0x03 # Content Type
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x08 # Response Topic
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x09 # Correlation Data
-      io.read(io.getbyte << 8 | io.getbyte)
-    elseif id == 0x0b # Subscription Identifier
-      read_varint(io)
-    elseif id == 0x23 # Topic Alias
-      io.getbyte << 8 | io.getbyte
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+      elsif id == 0x02 # Message Expiry Interval
+        val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+        read += 4
+
+      elsif id == 0x03 # Content Type
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x08 # Response Topic
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x09 # Correlation Data
+        val = io.read(io.readbyte << 8 | io.readbyte)
+        read += (val.bytesize + 2)
+
+      elsif id == 0x0b # Subscription Identifier
+        val = 0
+        mult = 1
+        while true
+          byte = io.readbyte
+          read += 1
+          val += (byte & 0x7F) * mult
+          break if (byte & 0x80).zero?
+          mult *= 128
+        end
+
+      elsif id == 0x23 # Topic Alias
+        val = io.readbyte << 8 | io.readbyte
+        read += 2
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def will_properties io, id
-    if id == 0x01 # Payload Format Indicator
-      io.getbyte
-    elseif id == 0x02 # Message Expiry Interval
-      io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte
-    elseif id == 0x03 # Content Type
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x08 # Response Topic
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x09 # Correlation Data
-      io.read(io.getbyte << 8 | io.getbyte)
-    elseif id == 0x18 # Will Delay Interval
-      io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def will_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x01 # Payload Format Indicator
+        val = io.readbyte
+        read += 1
+
+      elsif id == 0x02 # Message Expiry Interval
+        val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+        read += 4
+
+      elsif id == 0x03 # Content Type
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x08 # Response Topic
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x09 # Correlation Data
+        val = io.read(io.readbyte << 8 | io.readbyte)
+        read += (val.bytesize + 2)
+
+      elsif id == 0x18 # Will Delay Interval
+        val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+        read += 4
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def subscribe_properties io, id
-    if id == 0x0b # Subscription Identifier
-      read_varint(io)
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def subscribe_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x0b # Subscription Identifier
+        val = 0
+        mult = 1
+        while true
+          byte = io.readbyte
+          read += 1
+          val += (byte & 0x7F) * mult
+          break if (byte & 0x80).zero?
+          mult *= 128
+        end
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def connect_properties io, id
-    if id == 0x11 # Session Expiry Interval
-      io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte
-    elseif id == 0x15 # Authentication Method
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x16 # Authentication Data
-      io.read(io.getbyte << 8 | io.getbyte)
-    elseif id == 0x17 # Request Problem Information
-      io.getbyte
-    elseif id == 0x19 # Request Response Information
-      io.getbyte
-    elseif id == 0x21 # Receive Maximum
-      io.getbyte << 8 | io.getbyte
-    elseif id == 0x22 # Topic Alias Maximum
-      io.getbyte << 8 | io.getbyte
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    elseif id == 0x27 # Maximum Packet Size
-      io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte
-    else
-      raise "wrong property #{id}"
+  def connect_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x11 # Session Expiry Interval
+        val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+        read += 4
+
+      elsif id == 0x15 # Authentication Method
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x16 # Authentication Data
+        val = io.read(io.readbyte << 8 | io.readbyte)
+        read += (val.bytesize + 2)
+
+      elsif id == 0x17 # Request Problem Information
+        val = io.readbyte
+        read += 1
+
+      elsif id == 0x19 # Request Response Information
+        val = io.readbyte
+        read += 1
+
+      elsif id == 0x21 # Receive Maximum
+        val = io.readbyte << 8 | io.readbyte
+        read += 2
+
+      elsif id == 0x22 # Topic Alias Maximum
+        val = io.readbyte << 8 | io.readbyte
+        read += 2
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      elsif id == 0x27 # Maximum Packet Size
+        val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+        read += 4
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def connack_properties io, id
-    if id == 0x11 # Session Expiry Interval
-      io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte
-    elseif id == 0x12 # Assigned Client Identifier
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x13 # Server Keep Alive
-      io.getbyte << 8 | io.getbyte
-    elseif id == 0x15 # Authentication Method
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x16 # Authentication Data
-      io.read(io.getbyte << 8 | io.getbyte)
-    elseif id == 0x1a # Response Information
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x1c # Server Reference
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x21 # Receive Maximum
-      io.getbyte << 8 | io.getbyte
-    elseif id == 0x22 # Topic Alias Maximum
-      io.getbyte << 8 | io.getbyte
-    elseif id == 0x24 # Maximum QoS
-      io.getbyte
-    elseif id == 0x25 # Retain Available
-      io.getbyte
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    elseif id == 0x27 # Maximum Packet Size
-      io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte
-    elseif id == 0x28 # Wildcard Subscription Available
-      io.getbyte
-    elseif id == 0x29 # Subscription Identifier Available
-      io.getbyte
-    elseif id == 0x2a # Shared Subscription Available
-      io.getbyte
-    else
-      raise "wrong property #{id}"
+  def connack_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x11 # Session Expiry Interval
+        val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+        read += 4
+
+      elsif id == 0x12 # Assigned Client Identifier
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x13 # Server Keep Alive
+        val = io.readbyte << 8 | io.readbyte
+        read += 2
+
+      elsif id == 0x15 # Authentication Method
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x16 # Authentication Data
+        val = io.read(io.readbyte << 8 | io.readbyte)
+        read += (val.bytesize + 2)
+
+      elsif id == 0x1a # Response Information
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x1c # Server Reference
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x21 # Receive Maximum
+        val = io.readbyte << 8 | io.readbyte
+        read += 2
+
+      elsif id == 0x22 # Topic Alias Maximum
+        val = io.readbyte << 8 | io.readbyte
+        read += 2
+
+      elsif id == 0x24 # Maximum QoS
+        val = io.readbyte
+        read += 1
+
+      elsif id == 0x25 # Retain Available
+        val = io.readbyte
+        read += 1
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      elsif id == 0x27 # Maximum Packet Size
+        val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+        read += 4
+
+      elsif id == 0x28 # Wildcard Subscription Available
+        val = io.readbyte
+        read += 1
+
+      elsif id == 0x29 # Subscription Identifier Available
+        val = io.readbyte
+        read += 1
+
+      elsif id == 0x2a # Shared Subscription Available
+        val = io.readbyte
+        read += 1
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def disconnect_properties io, id
-    if id == 0x11 # Session Expiry Interval
-      io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte
-    elseif id == 0x1c # Server Reference
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def disconnect_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x11 # Session Expiry Interval
+        val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+        read += 4
+
+      elsif id == 0x1c # Server Reference
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def auth_properties io, id
-    if id == 0x15 # Authentication Method
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x16 # Authentication Data
-      io.read(io.getbyte << 8 | io.getbyte)
-    elseif id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def auth_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x15 # Authentication Method
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x16 # Authentication Data
+        val = io.read(io.readbyte << 8 | io.readbyte)
+        read += (val.bytesize + 2)
+
+      elsif id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def puback_properties io, id
-    if id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def puback_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def pubrec_properties io, id
-    if id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def pubrec_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def pubrel_properties io, id
-    if id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def pubrel_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def pubcomp_properties io, id
-    if id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def pubcomp_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def suback_properties io, id
-    if id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def suback_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def unsuback_properties io, id
-    if id == 0x1f # Reason String
-      io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')
-    elseif id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def unsuback_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x1f # Reason String
+        val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val.bytesize + 2)
+
+      elsif id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
-  def unsubscribe_properties io, id
-    if id == 0x26 # User Property
-      [io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]
-    else
-      raise "wrong property #{id}"
+  def unsubscribe_properties io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      if id == 0x26 # User Property
+        val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val1.bytesize + 2)
+        val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+        read += (val2.bytesize + 2)
+        val = [val1, val2]
+
+      else
+        raise "wrong property #{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
 end

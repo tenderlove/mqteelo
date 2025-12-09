@@ -19,13 +19,13 @@ end
 
 class Dispatch
 TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
-  def handle io, id, flags
+  def _handle io, id, flags, len
   <%- types.each_with_index do |type, i| -%>
-    <%= i == 0 ? "if" : "elseif" %> id == <%= sprintf("%#04x", type.value) %>
+    <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", type.value) %>
     <%- if type.flags -%>
       raise "wrong flags" unless flags == <%= sprintf("%#04x", type.flags) %>
     <%- end -%>
-      handle_<%= type.name.downcase %>(io, flags)
+      handle_<%= type.name.downcase %>(io, flags, len)
   <%- end -%>
     else
       raise "unknown id \#{id}"
@@ -38,25 +38,78 @@ eot
 end
 
 class PropertyTemplate
+  READBYTE = ERB.new(<<-eot, trim_mode: '-')
+val = io.readbyte
+read += 1
+  eot
+
+  TWOBYTE = ERB.new(<<-eot, trim_mode: '-')
+val = io.readbyte << 8 | io.readbyte
+read += 2
+  eot
+
+  FOURBYTE = ERB.new(<<-eot, trim_mode: '-')
+val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+read += 4
+  eot
+
+  STRING = ERB.new(<<-eot, trim_mode: '-')
+val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+read += (val.bytesize + 2)
+  eot
+
+  STRING_PAIR = ERB.new(<<-eot, trim_mode: '-')
+val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+read += (val1.bytesize + 2)
+val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+read += (val2.bytesize + 2)
+val = [val1, val2]
+  eot
+
+  BINARY = ERB.new(<<-eot, trim_mode: '-')
+val = io.read(io.readbyte << 8 | io.readbyte)
+read += (val.bytesize + 2)
+  eot
+
+  VARINT = ERB.new(<<-eot, trim_mode: '-')
+val = 0
+mult = 1
+while true
+  byte = io.readbyte
+  read += 1
+  val += (byte & 0x7F) * mult
+  break if (byte & 0x80).zero?
+  mult *= 128
+end
+  eot
+
   LUT = {
-    "Byte" => "io.getbyte",
-    "Two Byte Integer" => "io.getbyte << 8 | io.getbyte",
-    "Four Byte Integer" => "io.getbyte << 24 | io.getbyte << 16 | io.getbyte << 8 | io.getbyte",
-    "UTF-8 Encoded String" => "io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')",
-    "UTF-8 String Pair" => "[io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8'), io.read(io.getbyte << 8 | io.getbyte).force_encoding('UTF-8')]",
-    "Binary Data" => "io.read(io.getbyte << 8 | io.getbyte)",
-    "Variable Byte Integer" => "read_varint(io)",
+    "Byte" => READBYTE,
+    "Two Byte Integer" => TWOBYTE,
+    "Four Byte Integer" => FOURBYTE,
+    "UTF-8 Encoded String" => STRING,
+    "UTF-8 String Pair" => STRING_PAIR,
+    "Binary Data" => BINARY,
+    "Variable Byte Integer" => VARINT,
   }
   TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
   <%- props.each do |type, values| -%>
-  def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> io, id
-    <%- values.each_with_index do |val, i| -%>
-    <%= i == 0 ? "if" : "elseif" %> id == <%= sprintf("%#04x", val.ident) %> # <%= val.name %>
-      <%= LUT.fetch(val.type) %>
-    <%- end -%>
-    else
-      raise "wrong property \#{id}"
+  def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> io, len
+    read = 0
+    properties = []
+    while read < len
+      id = io.readbyte
+      read += 1
+      <%- values.each_with_index do |val, i| -%>
+      <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", val.ident) %> # <%= val.name %>
+<%= LUT.fetch(val.type).result.lines.map { "        " + _1 }.join %>
+      <%- end -%>
+      else
+        raise "wrong property \#{sprintf("%#04x", id)}"
+      end
+      properties << [id, val]
     end
+    properties
   end
 
 <%- end -%>
