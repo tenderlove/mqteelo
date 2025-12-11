@@ -4,36 +4,45 @@ require "uri"
 require "fileutils"
 require "erb"
 
+class PropertyConstants
+TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
+<%- props.each do |property| -%>
+<%= property.name.gsub(/ /, '_').upcase %> = <%= sprintf("%#04x", property.ident) %>
+<%- end -%>
+eot
+  def self.result props, indent:
+    TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.join
+  end
+end
+
 class ReasonTemplate
 TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
-  module Reasons
 <%- reasons.each do |reason| -%>
-    <%= reason.name.upcase.sub(/-/, '').tr(' ', '_') %> = <%= sprintf("%#04x", reason.value) %>
+<%= reason.name.upcase.sub(/-/, '').tr(' ', '_') %> = <%= sprintf("%#04x", reason.value) %>
 <%- end -%>
-  end
 eot
-  def self.result reasons
-    TEMPLATE.result binding
+  def self.result reasons, indent:
+    TEMPLATE.result(binding).lines.map { (" " * indent) + _1 }.join
   end
 end
 
 class Dispatch
 TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
-  def _handle io, id, flags, len
-  <%- types.each_with_index do |type, i| -%>
-    <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", type.value) %>
-    <%- if type.flags -%>
-      raise "wrong flags" unless flags == <%= sprintf("%#04x", type.flags) %>
-    <%- end -%>
-      handle_<%= type.name.downcase %>(io, flags, len)
+def _handle io, id, flags, len
+<%- types.each_with_index do |type, i| -%>
+  <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", type.value) %>
+  <%- if type.flags -%>
+    raise "wrong flags" unless flags == <%= sprintf("%#04x", type.flags) %>
   <%- end -%>
-    else
-      raise "unknown id \#{id}"
-    end
+    handle_<%= type.name.downcase %>(io, flags, len)
+<%- end -%>
+  else
+    raise "unknown id \#{id}"
   end
+end
 eot
-  def self.result types
-    TEMPLATE.result binding
+  def self.result types, indent:
+    TEMPLATE.result(binding).lines.map { (" " * indent) + _1 }.join
   end
 end
 
@@ -94,29 +103,29 @@ end
   }
   TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
   <%- props.each do |type, values| -%>
-  def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> io, len
-    read = 0
-    properties = []
-    while read < len
-      id = io.readbyte
-      read += 1
-      <%- values.each_with_index do |val, i| -%>
-      <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", val.ident) %> # <%= val.name %>
+def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> io, len
+  read = 0
+  properties = []
+  while read < len
+    id = io.readbyte
+    read += 1
+    <%- values.each_with_index do |val, i| -%>
+    <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", val.ident) %> # <%= val.name %>
 <%= LUT.fetch(val.type).result.lines.map { "        " + _1 }.join %>
-      <%- end -%>
-      else
-        raise "wrong property \#{sprintf("%#04x", id)}"
-      end
-      properties << [id, val]
+    <%- end -%>
+    else
+      raise "wrong property \#{sprintf("%#04x", id)}"
     end
-    properties
+    properties << [id, val]
   end
+  properties
+end
 
 <%- end -%>
 eot
 
-  def self.result props
-    TEMPLATE.result binding
+  def self.result props, indent:
+    TEMPLATE.result(binding).lines.map { (" " * indent) + _1 }.join
   end
 end
 

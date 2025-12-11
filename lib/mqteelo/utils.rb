@@ -19,5 +19,9 @@ module MQTeelo
     def read_utf8_string io
       io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
     end
+
+    def read_binary_string io
+      io.read(io.readbyte << 8 | io.readbyte)
+    end
   end
 end
