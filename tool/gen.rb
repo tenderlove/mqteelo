@@ -4,6 +4,18 @@ require "uri"
 require "fileutils"
 require "erb"
 
+class PacketTemplate
+TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
+<%- types.each do |type| -%>
+<%= type.name %> = (<%= sprintf("%#04x", type.value) %> << 4)<%= type.flags && type.flags > 0 ? sprintf(" | %#04x", type.flags) : "" %>
+<%- end -%>
+eot
+
+  def self.result types, indent:
+    TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.map(&:rstrip).join("\n")
+  end
+end
+
 class PropertyConstants
 TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
 <%- props.each do |property| -%>
@@ -11,7 +23,66 @@ TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
 <%- end -%>
 eot
   def self.result props, indent:
-    TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.join
+    TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.map(&:rstrip).join("\n")
+  end
+end
+
+class EncodeProperty
+  BYTE = "out << value"
+
+  TWOBYTE = <<-eot
+[value].pack("n", buffer: out)
+  eot
+
+  FOURBYTE = <<-eot
+[value].pack("N", buffer: out)
+  eot
+
+  STRING = <<-eot
+[value.bytesize].pack("n", buffer: out)
+out << value
+  eot
+
+  STRING_PAIR = <<-eot
+[value[0].bytesize].pack("n", buffer: out)
+out << value[0]
+[value[1].bytesize].pack("n", buffer: out)
+out << value[1]
+  eot
+
+  BINARY = STRING
+
+  VARINT = <<-eot
+while true
+  enc_byte = value % 0x80
+  value /= 0x80
+  enc_byte |= 0x80 if value > 0
+  out << (enc_byte & 0xFF).chr
+  break unless value > 0
+end
+  eot
+
+  LUT = {
+    "Byte" => BYTE,
+    "Two Byte Integer" => TWOBYTE,
+    "Four Byte Integer" => FOURBYTE,
+    "UTF-8 Encoded String" => STRING,
+    "UTF-8 String Pair" => STRING_PAIR,
+    "Binary Data" => BINARY,
+    "Variable Byte Integer" => VARINT,
+  }
+  TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
+def encode_property id, value, out
+<%- props.each_with_index do |property, i| -%>
+  <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", property.ident) %>
+<%= LUT[property.type].lines.map { |l| "    " + l }.join %>
+<%- end -%>
+  else
+  end
+end
+eot
+  def self.result props, indent:
+    TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.map(&:rstrip).join("\n")
   end
 end
 
@@ -22,7 +93,7 @@ TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
 <%- end -%>
 eot
   def self.result reasons, indent:
-    TEMPLATE.result(binding).lines.map { (" " * indent) + _1 }.join
+    TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.map(&:rstrip).join("\n")
   end
 end
 
@@ -42,7 +113,7 @@ def _handle io, id, flags, len
 end
 eot
   def self.result types, indent:
-    TEMPLATE.result(binding).lines.map { (" " * indent) + _1 }.join
+    TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.map(&:rstrip).join("\n")
   end
 end
 
@@ -125,7 +196,7 @@ end
 eot
 
   def self.result props, indent:
-    TEMPLATE.result(binding).lines.map { (" " * indent) + _1 }.join
+    TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.map(&:rstrip).join("\n")
   end
 end
 

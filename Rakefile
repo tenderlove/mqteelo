@@ -19,9 +19,15 @@ file 'lib/mqteelo_gen.rb' => ["Rakefile", "tool/gen.rb"] do
     f.puts ReasonTemplate.result(rs, indent: 4)
     f.puts "  end"
     f.puts
+    f.puts "  module Packets"
+    f.puts PacketTemplate.result(types, indent: 4)
+    f.puts "  end"
+    f.puts
     f.puts "  class Connection"
     f.puts
     f.puts "    private"
+    f.puts
+    f.puts EncodeProperty.result(props, indent: 4)
     f.puts
     f.puts Dispatch.result(types, indent: 4)
     f.puts

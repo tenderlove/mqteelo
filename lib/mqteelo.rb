@@ -28,7 +28,8 @@ module MQTeelo
                      connect_properties: [[ Properties::RECEIVE_MAXIMUM, 20 ]],
                      will_properties: [],
                      will_topic: nil,
-                     will_payload: nil,
+                     will_payload: "",
+                     client_id: "",
                      username: nil,
                      password: nil
 
@@ -39,42 +40,63 @@ module MQTeelo
       conn_flags |= 1 << 6 if password
       conn_flags |= 1 << 7 if username
 
-      packet = "\x00\x04MQTT".b +
-        [ version, conn_flags ].pack("CC") +
-        encode_2byte_int(keep_alive) +
-        encode_connect_properties(connect_properties)
+      packet = "\x00\x04MQTT".b
+      [ version, conn_flags ].pack("CC", buffer: packet)
+      encode_2byte_int(keep_alive, packet)
 
+      encode_properties(connect_properties, packet)
+      encode_utf8_string(client_id, packet)
+
+      if will_topic
+        encode_properties(will_properties, packet)
+        encode_utf8_string(will_topic, packet)
+        encode_binary_string(will_payload, packet)
+      end
+
+      encode_utf8_string(username, packet) if username
+      encode_utf8_string(password, packet) if password
+
+      io.putc Packets::CONNECT
+      encode_varint2(packet.bytesize, io)
+      io.write packet
     end
 
     private
 
+    def encode_properties props, packet
+      buf = "".b
+      props.each do |id, val|
+        buf << id
+        encode_property(id, val, buf)
+      end
+      encode_varint(buf.bytesize, packet)
+      packet << buf
+    end
+
     def handle_connect io, flags, len
-      p io.read 6   # protocol name
-      p io.readbyte # protocol version
+      will_retain = false
+      clean_start = false
+
+      io.read 6   # protocol name
+      version = io.readbyte # protocol version
 
       conn_flags = io.readbyte # connect flags
       if (conn_flags & (1 << 5)) > 0
-        p "will retain"
+        will_retain = true
       end
       qos = conn_flags & 0b11000
-      p QOS: qos
-      if (conn_flags & (1 << 2)) > 0
-        p "will flag"
-      end
 
       if (conn_flags & (1 << 1)) > 0
-        p "clean start"
+        clean_start = true
       end
 
-      p read_2byte_int(io) # keep alive
+      keep_alive = read_2byte_int(io) # keep alive
 
-      p connect_properties io, read_varint(io)
+      connect_properties = self.connect_properties io, read_varint(io)
 
       client_id = read_utf8_string io
-      p client_id
 
       if (conn_flags & (1 << 2)) > 0
-        p "will flag"
         will_properties = will_properties io, read_varint(io)
         will_topic = read_utf8_string io
         will_payload = read_binary_string io
@@ -86,6 +108,9 @@ module MQTeelo
       if (conn_flags & (1 << 6)) > 0 # password
         password = read_utf8_string io
       end
+      @app.on_connect version:, will_retain:, qos:, clean_start:, keep_alive:,
+        connect_properties:, will_properties:, will_topic:, will_payload:,
+        client_id:, username:, password:
     end
   end
 end

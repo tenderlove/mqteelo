@@ -77,9 +77,123 @@ module MQTeelo
     WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED = 0xa2
   end
 
+  module Packets
+    CONNECT = (0x01 << 4)
+    CONNACK = (0x02 << 4)
+    PUBLISH = (0x03 << 4)
+    PUBACK = (0x04 << 4)
+    PUBREC = (0x05 << 4)
+    PUBREL = (0x06 << 4) | 0x02
+    PUBCOMP = (0x07 << 4)
+    SUBSCRIBE = (0x08 << 4) | 0x02
+    SUBACK = (0x09 << 4)
+    UNSUBSCRIBE = (0x0a << 4) | 0x02
+    UNSUBACK = (0x0b << 4)
+    PINGREQ = (0x0c << 4)
+    PINGRESP = (0x0d << 4)
+    DISCONNECT = (0x0e << 4)
+    AUTH = (0x0f << 4)
+  end
+
   class Connection
 
     private
+
+    def encode_property id, value, out
+      if id == 0x01
+        out << value
+      elsif id == 0x02
+        [value].pack("N", buffer: out)
+
+      elsif id == 0x03
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x08
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x09
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x0b
+        while true
+          enc_byte = value % 0x80
+          value /= 0x80
+          enc_byte |= 0x80 if value > 0
+          out << (enc_byte & 0xFF).chr
+          break unless value > 0
+        end
+
+      elsif id == 0x11
+        [value].pack("N", buffer: out)
+
+      elsif id == 0x12
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x13
+        [value].pack("n", buffer: out)
+
+      elsif id == 0x15
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x16
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x17
+        out << value
+      elsif id == 0x18
+        [value].pack("N", buffer: out)
+
+      elsif id == 0x19
+        out << value
+      elsif id == 0x1a
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x1c
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x1f
+        [value.bytesize].pack("n", buffer: out)
+        out << value
+
+      elsif id == 0x21
+        [value].pack("n", buffer: out)
+
+      elsif id == 0x22
+        [value].pack("n", buffer: out)
+
+      elsif id == 0x23
+        [value].pack("n", buffer: out)
+
+      elsif id == 0x24
+        out << value
+      elsif id == 0x25
+        out << value
+      elsif id == 0x26
+        [value[0].bytesize].pack("n", buffer: out)
+        out << value[0]
+        [value[1].bytesize].pack("n", buffer: out)
+        out << value[1]
+
+      elsif id == 0x27
+        [value].pack("N", buffer: out)
+
+      elsif id == 0x28
+        out << value
+      elsif id == 0x29
+        out << value
+      elsif id == 0x2a
+        out << value
+      else
+      end
+    end
 
     def _handle io, id, flags, len
       if id == 0x01
@@ -140,23 +254,23 @@ module MQTeelo
         if id == 0x01 # Payload Format Indicator
             val = io.readbyte
             read += 1
-    
+
         elsif id == 0x02 # Message Expiry Interval
             val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
             read += 4
-    
+
         elsif id == 0x03 # Content Type
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x08 # Response Topic
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x09 # Correlation Data
             val = io.read(io.readbyte << 8 | io.readbyte)
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x0b # Subscription Identifier
             val = 0
             mult = 1
@@ -167,18 +281,18 @@ module MQTeelo
               break if (byte & 0x80).zero?
               mult *= 128
             end
-    
+
         elsif id == 0x23 # Topic Alias
             val = io.readbyte << 8 | io.readbyte
             read += 2
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -186,7 +300,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def will_properties io, len
       read = 0
       properties = []
@@ -196,34 +310,34 @@ module MQTeelo
         if id == 0x01 # Payload Format Indicator
             val = io.readbyte
             read += 1
-    
+
         elsif id == 0x02 # Message Expiry Interval
             val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
             read += 4
-    
+
         elsif id == 0x03 # Content Type
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x08 # Response Topic
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x09 # Correlation Data
             val = io.read(io.readbyte << 8 | io.readbyte)
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x18 # Will Delay Interval
             val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
             read += 4
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -231,7 +345,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def subscribe_properties io, len
       read = 0
       properties = []
@@ -248,14 +362,14 @@ module MQTeelo
               break if (byte & 0x80).zero?
               mult *= 128
             end
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -263,7 +377,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def connect_properties io, len
       read = 0
       properties = []
@@ -273,42 +387,42 @@ module MQTeelo
         if id == 0x11 # Session Expiry Interval
             val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
             read += 4
-    
+
         elsif id == 0x15 # Authentication Method
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x16 # Authentication Data
             val = io.read(io.readbyte << 8 | io.readbyte)
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x17 # Request Problem Information
             val = io.readbyte
             read += 1
-    
+
         elsif id == 0x19 # Request Response Information
             val = io.readbyte
             read += 1
-    
+
         elsif id == 0x21 # Receive Maximum
             val = io.readbyte << 8 | io.readbyte
             read += 2
-    
+
         elsif id == 0x22 # Topic Alias Maximum
             val = io.readbyte << 8 | io.readbyte
             read += 2
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         elsif id == 0x27 # Maximum Packet Size
             val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
             read += 4
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -316,7 +430,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def connack_properties io, len
       read = 0
       properties = []
@@ -326,74 +440,74 @@ module MQTeelo
         if id == 0x11 # Session Expiry Interval
             val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
             read += 4
-    
+
         elsif id == 0x12 # Assigned Client Identifier
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x13 # Server Keep Alive
             val = io.readbyte << 8 | io.readbyte
             read += 2
-    
+
         elsif id == 0x15 # Authentication Method
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x16 # Authentication Data
             val = io.read(io.readbyte << 8 | io.readbyte)
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x1a # Response Information
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x1c # Server Reference
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x21 # Receive Maximum
             val = io.readbyte << 8 | io.readbyte
             read += 2
-    
+
         elsif id == 0x22 # Topic Alias Maximum
             val = io.readbyte << 8 | io.readbyte
             read += 2
-    
+
         elsif id == 0x24 # Maximum QoS
             val = io.readbyte
             read += 1
-    
+
         elsif id == 0x25 # Retain Available
             val = io.readbyte
             read += 1
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         elsif id == 0x27 # Maximum Packet Size
             val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
             read += 4
-    
+
         elsif id == 0x28 # Wildcard Subscription Available
             val = io.readbyte
             read += 1
-    
+
         elsif id == 0x29 # Subscription Identifier Available
             val = io.readbyte
             read += 1
-    
+
         elsif id == 0x2a # Shared Subscription Available
             val = io.readbyte
             read += 1
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -401,7 +515,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def disconnect_properties io, len
       read = 0
       properties = []
@@ -411,22 +525,22 @@ module MQTeelo
         if id == 0x11 # Session Expiry Interval
             val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
             read += 4
-    
+
         elsif id == 0x1c # Server Reference
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -434,7 +548,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def auth_properties io, len
       read = 0
       properties = []
@@ -444,22 +558,22 @@ module MQTeelo
         if id == 0x15 # Authentication Method
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x16 # Authentication Data
             val = io.read(io.readbyte << 8 | io.readbyte)
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -467,7 +581,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def puback_properties io, len
       read = 0
       properties = []
@@ -477,14 +591,14 @@ module MQTeelo
         if id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -492,7 +606,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def pubrec_properties io, len
       read = 0
       properties = []
@@ -502,14 +616,14 @@ module MQTeelo
         if id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -517,7 +631,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def pubrel_properties io, len
       read = 0
       properties = []
@@ -527,14 +641,14 @@ module MQTeelo
         if id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -542,7 +656,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def pubcomp_properties io, len
       read = 0
       properties = []
@@ -552,14 +666,14 @@ module MQTeelo
         if id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -567,7 +681,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def suback_properties io, len
       read = 0
       properties = []
@@ -577,14 +691,14 @@ module MQTeelo
         if id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -592,7 +706,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def unsuback_properties io, len
       read = 0
       properties = []
@@ -602,14 +716,14 @@ module MQTeelo
         if id == 0x1f # Reason String
             val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val.bytesize + 2)
-    
+
         elsif id == 0x26 # User Property
             val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val1.bytesize + 2)
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -617,7 +731,7 @@ module MQTeelo
       end
       properties
     end
-    
+
     def unsubscribe_properties io, len
       read = 0
       properties = []
@@ -630,7 +744,7 @@ module MQTeelo
             val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
             read += (val2.bytesize + 2)
             val = [val1, val2]
-    
+
         else
           raise "wrong property #{sprintf("%#04x", id)}"
         end
@@ -638,6 +752,5 @@ module MQTeelo
       end
       properties
     end
-    
   end
 end
