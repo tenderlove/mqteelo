@@ -4,14 +4,11 @@ module MQTeelo
   class Connection
     include Utils
 
-    attr_reader :io
-
-    def initialize io, app
-      @io = io
+    def initialize app
       @app = app
     end
 
-    def receive
+    def receive io
       byte = io.readbyte
       flags = byte & 0xF
       type = byte >> 4
@@ -20,7 +17,8 @@ module MQTeelo
       _handle io, type, flags, size
     end
 
-    def send_connect version: 5,
+    def send_connect io,
+                     version: 5,
                      will_retain: false,
                      qos: 0,
                      clean_start: true,
@@ -61,7 +59,7 @@ module MQTeelo
       io.write packet
     end
 
-    def send_connack session_present:, reason:, properties:
+    def send_connack io, session_present:, reason:, properties:
       packet = if session_present
         "\x01".b
       else
