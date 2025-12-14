@@ -61,6 +61,20 @@ module MQTeelo
       io.write packet
     end
 
+    def send_connack session_present:, reason:, properties:
+      packet = if session_present
+        "\x01".b
+      else
+        "\x00".b
+      end
+
+      [reason].pack("C", buffer: packet)
+      encode_properties(properties, packet)
+      io.putc Packets::CONNACK
+      encode_varint2(packet.bytesize, io)
+      io.write packet
+    end
+
     private
 
     def encode_properties props, packet
@@ -108,9 +122,18 @@ module MQTeelo
       if (conn_flags & (1 << 6)) > 0 # password
         password = read_utf8_string io
       end
-      @app.on_connect version:, will_retain:, qos:, clean_start:, keep_alive:,
+      @app.on_connect self, version:, will_retain:, qos:, clean_start:, keep_alive:,
         connect_properties:, will_properties:, will_topic:, will_payload:,
         client_id:, username:, password:
+    end
+
+    def handle_connack io, _, _
+      flags = io.readbyte
+      raise if (flags & 0xFE).positive?
+      session_present = flags[0].positive?
+      reason = io.readbyte
+      properties = self.connack_properties io, read_varint(io)
+      @app.on_connack self, session_present:, reason:, properties:
     end
   end
 end

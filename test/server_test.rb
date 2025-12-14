@@ -13,7 +13,8 @@ module MQTeelo
         @events = []
       end
 
-      def on_connect version:,
+      def on_connect conn,
+                     version:,
                      will_retain:,
                      qos:,
                      clean_start:,
@@ -40,34 +41,43 @@ module MQTeelo
           password:
         }
       end
+
+      def on_connack _, session_present:, reason:, properties:
+        @events << { session_present:, reason:, properties: }
+      end
     end
 
-    class ProxyApp
+    class Echo
       def initialize conn
         @conn = conn
       end
 
-      def on_connect(...)
+      def on_connect(conn, ...)
         @conn.send_connect(...)
+      end
+
+      def on_connack(conn, ...)
+        @conn.send_connack(...)
       end
     end
 
-    def test_handle_will
+    def test_handle_connect
       app = App.new
       bytes = "\x10&\x00\x04MQTT\x05\xC6\x00<\x03!\x00\x14\x00\x00\x00\x00\afoo/bar\x00\x00\x00\x03pub\x00\x03sub".b
       io = StringIO.new bytes
-      conn = Connection.new io, app
+      conn = make_connection io, app
       conn.receive
+      assert_predicate io, :eof?
       assert_equal 1, app.events.length
       assert_equal [{version: 5, will_retain: false, qos: 0, clean_start: true, keep_alive: 60, connect_properties: [[Properties::RECEIVE_MAXIMUM, 20]], will_properties: [], will_topic: "foo/bar", will_payload: "", client_id: "", username: "pub", password: "sub"}], app.events
     end
 
     def test_roundtrip
       output = StringIO.new "".b
-      app = ProxyApp.new(Connection.new(output, nil))
+      app = Echo.new(make_connection(output, nil))
 
       bytes = "\x10&\x00\x04MQTT\x05\xC6\x00<\x03!\x00\x14\x00\x00\x00\x00\afoo/bar\x00\x00\x00\x03pub\x00\x03sub".b
-      server = Connection.new StringIO.new(bytes), app
+      server = make_connection StringIO.new(bytes), app
       server.receive
       assert_equal bytes, output.string
     end
@@ -76,9 +86,34 @@ module MQTeelo
     def test_send_connect
       bytes = "\x10&\x00\x04MQTT\x05\xC6\x00<\x03!\x00\x14\x00\x00\x00\x00\afoo/bar\x00\x00\x00\x03pub\x00\x03sub".b
       io = StringIO.new "".b
-      conn = Connection.new io, nil
+      conn = make_connection io, nil
       conn.send_connect will_topic: "foo/bar", username: "pub", password: "sub"
       assert_equal bytes, io.string
+    end
+
+    def test_connack
+      bytes = " 5\x00\x002\"\x00\n\x12\x00)auto-FB891F1A-C8A1-76AA-013A-73DA6FEBEF26!\x00\n"
+      io = StringIO.new bytes
+      app = App.new
+      conn = make_connection io, app
+      conn.receive
+      assert_predicate io, :eof?
+      assert_equal 1, app.events.length
+      assert_equal [{session_present: false, reason: 0, properties: [[34, 10], [18, "auto-FB891F1A-C8A1-76AA-013A-73DA6FEBEF26"], [33, 10]]}], app.events
+    end
+
+    def test_connack_roundtrip
+      output = StringIO.new "".b
+      app = Echo.new(make_connection(output, nil))
+
+      bytes = " 5\x00\x002\"\x00\n\x12\x00)auto-FB891F1A-C8A1-76AA-013A-73DA6FEBEF26!\x00\n"
+      server = make_connection StringIO.new(bytes), app
+      server.receive
+      assert_equal bytes, output.string
+    end
+
+    def make_connection io, app
+      Connection.new io, app
     end
   end
 end
