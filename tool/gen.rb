@@ -99,13 +99,13 @@ end
 
 class Dispatch
 TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
-def _handle io, id, flags, len
+def _handle app, io, id, flags, len
 <%- types.each_with_index do |type, i| -%>
   <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", type.value) %>
   <%- if type.flags -%>
     raise "wrong flags" unless flags == <%= sprintf("%#04x", type.flags) %>
   <%- end -%>
-    handle_<%= type.name.downcase %>(io, flags, len)
+    handle_<%= type.name.downcase %>(app, io, flags, len)
 <%- end -%>
   else
     raise "unknown id \#{id}"

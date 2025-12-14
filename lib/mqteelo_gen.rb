@@ -195,51 +195,51 @@ module MQTeelo
       end
     end
 
-    def _handle io, id, flags, len
+    def _handle app, io, id, flags, len
       if id == 0x01
         raise "wrong flags" unless flags == 0000
-        handle_connect(io, flags, len)
+        handle_connect(app, io, flags, len)
       elsif id == 0x02
         raise "wrong flags" unless flags == 0000
-        handle_connack(io, flags, len)
+        handle_connack(app, io, flags, len)
       elsif id == 0x03
-        handle_publish(io, flags, len)
+        handle_publish(app, io, flags, len)
       elsif id == 0x04
         raise "wrong flags" unless flags == 0000
-        handle_puback(io, flags, len)
+        handle_puback(app, io, flags, len)
       elsif id == 0x05
         raise "wrong flags" unless flags == 0000
-        handle_pubrec(io, flags, len)
+        handle_pubrec(app, io, flags, len)
       elsif id == 0x06
         raise "wrong flags" unless flags == 0x02
-        handle_pubrel(io, flags, len)
+        handle_pubrel(app, io, flags, len)
       elsif id == 0x07
         raise "wrong flags" unless flags == 0000
-        handle_pubcomp(io, flags, len)
+        handle_pubcomp(app, io, flags, len)
       elsif id == 0x08
         raise "wrong flags" unless flags == 0x02
-        handle_subscribe(io, flags, len)
+        handle_subscribe(app, io, flags, len)
       elsif id == 0x09
         raise "wrong flags" unless flags == 0000
-        handle_suback(io, flags, len)
+        handle_suback(app, io, flags, len)
       elsif id == 0x0a
         raise "wrong flags" unless flags == 0x02
-        handle_unsubscribe(io, flags, len)
+        handle_unsubscribe(app, io, flags, len)
       elsif id == 0x0b
         raise "wrong flags" unless flags == 0000
-        handle_unsuback(io, flags, len)
+        handle_unsuback(app, io, flags, len)
       elsif id == 0x0c
         raise "wrong flags" unless flags == 0000
-        handle_pingreq(io, flags, len)
+        handle_pingreq(app, io, flags, len)
       elsif id == 0x0d
         raise "wrong flags" unless flags == 0000
-        handle_pingresp(io, flags, len)
+        handle_pingresp(app, io, flags, len)
       elsif id == 0x0e
         raise "wrong flags" unless flags == 0000
-        handle_disconnect(io, flags, len)
+        handle_disconnect(app, io, flags, len)
       elsif id == 0x0f
         raise "wrong flags" unless flags == 0000
-        handle_auth(io, flags, len)
+        handle_auth(app, io, flags, len)
       else
         raise "unknown id #{id}"
       end

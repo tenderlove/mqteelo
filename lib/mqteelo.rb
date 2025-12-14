@@ -4,17 +4,13 @@ module MQTeelo
   class Connection
     include Utils
 
-    def initialize app
-      @app = app
-    end
-
-    def receive io
+    def receive app, io
       byte = io.readbyte
       flags = byte & 0xF
       type = byte >> 4
       size = read_varint(io)
 
-      _handle io, type, flags, size
+      _handle app, io, type, flags, size
     end
 
     def send_connect io,
@@ -85,7 +81,7 @@ module MQTeelo
       packet << buf
     end
 
-    def handle_connect io, flags, len
+    def handle_connect app, io, flags, len
       will_retain = false
       clean_start = false
 
@@ -120,18 +116,18 @@ module MQTeelo
       if (conn_flags & (1 << 6)) > 0 # password
         password = read_utf8_string io
       end
-      @app.on_connect self, version:, will_retain:, qos:, clean_start:, keep_alive:,
+      app.on_connect self, version:, will_retain:, qos:, clean_start:, keep_alive:,
         connect_properties:, will_properties:, will_topic:, will_payload:,
         client_id:, username:, password:
     end
 
-    def handle_connack io, _, _
+    def handle_connack app, io, _, _
       flags = io.readbyte
       raise if (flags & 0xFE).positive?
       session_present = flags[0].positive?
       reason = io.readbyte
       properties = self.connack_properties io, read_varint(io)
-      @app.on_connack self, session_present:, reason:, properties:
+      app.on_connack self, session_present:, reason:, properties:
     end
   end
 end
