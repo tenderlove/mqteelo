@@ -37,7 +37,7 @@ file 'lib/mqteelo_gen.rb' => ["Rakefile", "tool/gen.rb"] do
   }
 end
 
-task default: 'lib/mqteelo_gen.rb'
+task default: :test
 
 Rake::TestTask.new(:test) do |t|
   t.libs << "test"
@@ -45,3 +45,5 @@ Rake::TestTask.new(:test) do |t|
   t.test_files = FileList["test/**/*_test.rb"]
   t.warning = true
 end
+
+task test: "lib/mqteelo_gen.rb"

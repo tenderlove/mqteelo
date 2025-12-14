@@ -14,6 +14,7 @@ module MQTeelo
       end
 
       def on_connect conn,
+                     io,
                      version:,
                      will_retain:,
                      qos:,
@@ -42,8 +43,12 @@ module MQTeelo
         }
       end
 
-      def on_connack _, session_present:, reason:, properties:
+      def on_connack _, _, session_present:, reason:, properties:
         @events << { session_present:, reason:, properties: }
+      end
+
+      def on_publish _, _, dup:, qos:, retain:, packet_id:, topic:, properties:, payload:
+        @events << { dup:, qos:, retain:, packet_id:, topic:, properties:, payload: }
       end
     end
 
@@ -53,12 +58,16 @@ module MQTeelo
         @conn = conn
       end
 
-      def on_connect(conn, ...)
+      def on_connect(_, _, ...)
         @conn.send_connect(@out_io, ...)
       end
 
-      def on_connack(conn, ...)
+      def on_connack(_, _, ...)
         @conn.send_connack(@out_io, ...)
+      end
+
+      def on_publish(_, _, ...)
+        @conn.send_publish(@out_io, ...)
       end
     end
 
@@ -109,6 +118,28 @@ module MQTeelo
       app = Echo.new(output, make_connection)
 
       bytes = " 5\x00\x002\"\x00\n\x12\x00)auto-FB891F1A-C8A1-76AA-013A-73DA6FEBEF26!\x00\n"
+      io = StringIO.new(bytes)
+      server = make_connection
+      server.receive app, io
+      assert_equal bytes, output.string
+    end
+
+    def test_publish
+      bytes = "0(\x00\x04test\x00message from mosquitto_pub client".b
+      io = StringIO.new bytes
+      app = App.new
+      conn = make_connection
+      conn.receive app, io
+      assert_predicate io, :eof?
+      assert_equal 1, app.events.length
+      assert_equal [{dup: false, qos: 0, retain: false, topic: "test", packet_id: nil, properties: [], payload: "message from mosquitto_pub client"}], app.events
+    end
+
+    def test_publish_roundtrip
+      output = StringIO.new "".b
+      app = Echo.new(output, make_connection)
+
+      bytes = "0(\x00\x04test\x00message from mosquitto_pub client".b
       io = StringIO.new(bytes)
       server = make_connection
       server.receive app, io

@@ -53,6 +53,7 @@ module MQTeelo
       io.putc Packets::CONNECT
       encode_varint2(packet.bytesize, io)
       io.write packet
+      io.flush
     end
 
     def send_connack io, session_present:, reason:, properties:
@@ -67,6 +68,28 @@ module MQTeelo
       io.putc Packets::CONNACK
       encode_varint2(packet.bytesize, io)
       io.write packet
+      io.flush
+    end
+
+    def send_publish io, dup:, qos:, retain:, topic:, packet_id:, properties:, payload:
+      flags = (dup ? 0x8 : 0x0) | (qos << 1) | (retain ? 0x1 : 0)
+
+      packet = "".b
+      encode_utf8_string(topic, packet)
+
+      if qos.positive?
+        raise NotImplementedError
+      end
+
+      encode_properties(properties, packet)
+
+      len = packet.bytesize + payload.bytesize
+
+      io.putc Packets::PUBLISH | flags
+      encode_varint2(len, io)
+      io.write packet
+      io.write payload
+      io.flush
     end
 
     private
@@ -79,6 +102,28 @@ module MQTeelo
       end
       encode_varint(buf.bytesize, packet)
       packet << buf
+    end
+
+    def handle_publish app, io, flags, len
+      dup = flags[3].positive?
+      qos = (flags >> 1) & 0x3
+      retain = flags[0].positive?
+      topic = read_utf8_string io
+      packet_id = nil
+      if qos.positive?
+        raise NotImplementedError
+      end
+      prop_len = read_varint(io)
+      properties = publish_properties io, prop_len
+
+      remaining = len -
+        (prop_len +
+          encoded_varint_len(prop_len) +
+          encoded_utf8_len(topic) +
+          (qos.positive? ? 1 : 0))
+
+      payload = io.read remaining
+      app.on_publish self, io, dup:, qos:, retain:, packet_id:, topic:, properties:, payload:
     end
 
     def handle_connect app, io, flags, len
@@ -116,7 +161,7 @@ module MQTeelo
       if (conn_flags & (1 << 6)) > 0 # password
         password = read_utf8_string io
       end
-      app.on_connect self, version:, will_retain:, qos:, clean_start:, keep_alive:,
+      app.on_connect self, io, version:, will_retain:, qos:, clean_start:, keep_alive:,
         connect_properties:, will_properties:, will_topic:, will_payload:,
         client_id:, username:, password:
     end
@@ -127,7 +172,7 @@ module MQTeelo
       session_present = flags[0].positive?
       reason = io.readbyte
       properties = self.connack_properties io, read_varint(io)
-      app.on_connack self, session_present:, reason:, properties:
+      app.on_connack self, io, session_present:, reason:, properties:
     end
   end
 end

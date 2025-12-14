@@ -2,6 +2,17 @@
 
 module MQTeelo
   module Utils
+    def encoded_varint_len int
+      return 1 if int < 0x80
+      return 2 if int < 0x4000
+      return 3 if int < 0x200000
+      4
+    end
+
+    def encoded_utf8_len str
+      str.bytesize + 2
+    end
+
     def read_varint io
       value = 0
       mult = 1
