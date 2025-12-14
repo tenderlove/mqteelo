@@ -20,7 +20,7 @@ module MQTeelo
                      qos:,
                      clean_start:,
                      keep_alive:,
-                     connect_properties:,
+                     properties:,
                      will_properties:,
                      will_topic:,
                      will_payload:,
@@ -33,7 +33,7 @@ module MQTeelo
           qos:,
           clean_start:,
           keep_alive:,
-          connect_properties:,
+          properties:,
           will_properties:,
           will_topic:,
           will_payload:,
@@ -79,7 +79,7 @@ module MQTeelo
       conn.receive app, io
       assert_predicate io, :eof?
       assert_equal 1, app.events.length
-      assert_equal [{version: 5, will_retain: false, qos: 0, clean_start: true, keep_alive: 60, connect_properties: [[Properties::RECEIVE_MAXIMUM, 20]], will_properties: [], will_topic: "foo/bar", will_payload: "", client_id: "", username: "pub", password: "sub"}], app.events
+      assert_equal [{version: 5, will_retain: false, qos: 0, clean_start: true, keep_alive: 60, properties: [[Properties::RECEIVE_MAXIMUM, 20]], will_properties: [], will_topic: "foo/bar", will_payload: "", client_id: "", username: "pub", password: "sub"}], app.events
     end
 
     def test_roundtrip

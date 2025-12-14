@@ -19,7 +19,7 @@ module MQTeelo
                      qos: 0,
                      clean_start: true,
                      keep_alive: 60,
-                     connect_properties: [[ Properties::RECEIVE_MAXIMUM, 20 ]],
+                     properties: [[ Properties::RECEIVE_MAXIMUM, 20 ]],
                      will_properties: [],
                      will_topic: nil,
                      will_payload: "",
@@ -38,7 +38,7 @@ module MQTeelo
       [ version, conn_flags ].pack("CC", buffer: packet)
       encode_2byte_int(keep_alive, packet)
 
-      encode_properties(connect_properties, packet)
+      encode_properties(properties, packet)
       encode_utf8_string(client_id, packet)
 
       if will_topic
@@ -145,7 +145,7 @@ module MQTeelo
 
       keep_alive = read_2byte_int(io) # keep alive
 
-      connect_properties = self.connect_properties io, read_varint(io)
+      properties = self.connect_properties io, read_varint(io)
 
       client_id = read_utf8_string io
 
@@ -162,7 +162,7 @@ module MQTeelo
         password = read_utf8_string io
       end
       app.on_connect self, io, version:, will_retain:, qos:, clean_start:, keep_alive:,
-        connect_properties:, will_properties:, will_topic:, will_payload:,
+        properties:, will_properties:, will_topic:, will_payload:,
         client_id:, username:, password:
     end
 
