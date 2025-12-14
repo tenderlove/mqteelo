@@ -86,8 +86,11 @@ def handle_request(fd, app)
     s = PacketSnoop.new(s)
     conn = MQTeelo::Connection.new
     begin
-    conn.receive app, s
+      conn.receive app, s
     rescue
+      p s
+      raise
+    rescue NotImplementedError
       p s
       raise
     end

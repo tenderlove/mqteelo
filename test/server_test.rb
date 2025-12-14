@@ -115,6 +115,18 @@ module MQTeelo
       assert_roundtrip bytes
     end
 
+    def test_publish_qos
+      bytes = "20\x00\x04test\x00\x01\x00message from mosquitto_pub client456456".b.freeze
+      io = StringIO.new bytes
+      app = App.new
+      conn = make_connection
+      conn.receive app, io
+      assert_predicate io, :eof?
+      assert_equal 1, app.events.length
+      assert_equal [{dup: false, qos: 1, retain: false, packet_id: 1, topic: "test", properties: [], payload: "message from mosquitto_pub client456456"}], app.events
+      assert_roundtrip bytes
+    end
+
     def make_connection
       Connection.new
     end

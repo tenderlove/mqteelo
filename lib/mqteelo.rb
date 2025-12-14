@@ -78,7 +78,7 @@ module MQTeelo
       encode_utf8_string(topic, packet)
 
       if qos.positive?
-        raise NotImplementedError
+        encode_2byte_int(packet_id, packet)
       end
 
       encode_properties(properties, packet)
@@ -111,7 +111,7 @@ module MQTeelo
       topic = read_utf8_string io
       packet_id = nil
       if qos.positive?
-        raise NotImplementedError
+        packet_id = read_2byte_int(io)
       end
       prop_len = read_varint(io)
       properties = publish_properties io, prop_len
