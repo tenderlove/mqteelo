@@ -92,6 +92,15 @@ module MQTeelo
       io.flush
     end
 
+    def send_disconnect io, reason:, properties:
+      if reason
+        raise NotImplementedError
+      else
+        io.putc Packets::DISCONNECT
+        io.putc 0
+      end
+    end
+
     private
 
     def encode_properties props, packet
@@ -164,6 +173,16 @@ module MQTeelo
       app.on_connect self, io, version:, will_retain:, qos:, clean_start:, keep_alive:,
         properties:, will_properties:, will_topic:, will_payload:,
         client_id:, username:, password:
+    end
+
+    def handle_disconnect app, io, flags, len
+      if len.positive?
+        raise NotImplementedError # we need a test for this
+        reason = io.readbyte
+        properties = disconnect_properties io, read_varint(io)
+      end
+
+      app.on_disconnect self, io, reason:, properties:
     end
 
     def handle_connack app, io, _, _

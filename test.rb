@@ -76,7 +76,10 @@ class App
                             [18, SecureRandom.uuid],
                             [33, 10]
                           ]
-    conn.receive self, io
+  end
+
+  def on_publish conn, io, dup:, qos:, retain:, topic:, packet_id:, properties:, payload:
+    p topic => payload
   end
 end
 
@@ -86,7 +89,9 @@ def handle_request(fd, app)
     s = PacketSnoop.new(s)
     conn = MQTeelo::Connection.new
     begin
-      conn.receive app, s
+      loop do
+        conn.receive app, s
+      end
     rescue
       p s
       raise

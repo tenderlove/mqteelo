@@ -50,6 +50,10 @@ module MQTeelo
       def on_publish _, _, dup:, qos:, retain:, packet_id:, topic:, properties:, payload:
         @events << { dup:, qos:, retain:, packet_id:, topic:, properties:, payload: }
       end
+
+      def on_disconnect _, _, reason:, properties:
+        @events << { reason:, properties: }
+      end
     end
 
     class Echo
@@ -68,6 +72,10 @@ module MQTeelo
 
       def on_publish(_, _, ...)
         @conn.send_publish(@out_io, ...)
+      end
+
+      def on_disconnect(_, _, ...)
+        @conn.send_disconnect(@out_io, ...)
       end
     end
 
@@ -124,6 +132,18 @@ module MQTeelo
       assert_predicate io, :eof?
       assert_equal 1, app.events.length
       assert_equal [{dup: false, qos: 1, retain: false, packet_id: 1, topic: "test", properties: [], payload: "message from mosquitto_pub client456456"}], app.events
+      assert_roundtrip bytes
+    end
+
+    def test_disconnect
+      bytes = "\xE0\x00".b.freeze
+      io = StringIO.new bytes
+      app = App.new
+      conn = make_connection
+      conn.receive app, io
+      assert_predicate io, :eof?
+      assert_equal 1, app.events.length
+      assert_equal [{reason: nil, properties: nil}], app.events
       assert_roundtrip bytes
     end
 
