@@ -156,6 +156,19 @@ module MQTeelo
       assert_roundtrip bytes
     end
 
+    def test_subscribe_2_topics
+      bytes = "\x82\x10\x00\x01\x00\x00\x04test\x00\x00\x03foo\x00".b.freeze
+      File.binwrite "out.data", bytes
+      io = StringIO.new bytes
+      app = App.new
+      conn = make_connection
+      conn.receive app, io
+      assert_predicate io, :eof?
+      assert_equal 1, app.events.length
+      assert_equal [{packet_id: 1, properties: [], filters: [["test", 0], ["foo", 0]]}], app.events
+      assert_roundtrip bytes
+    end
+
     def test_disconnect
       bytes = "\xE0\x00".b.freeze
       io = StringIO.new bytes

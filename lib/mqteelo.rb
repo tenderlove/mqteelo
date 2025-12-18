@@ -128,12 +128,21 @@ module MQTeelo
     end
 
     def handle_subscribe app, io, flags, len
+      read = 0
       packet_id = read_2byte_int(io)
+      read += 2
       prop_len = read_varint(io)
+      read += encoded_varint_len(prop_len)
       properties = subscribe_properties io, prop_len
-      filter = read_utf8_string io
-      qos = io.readbyte
-      filters = [[filter, qos]]
+      read += prop_len
+
+      filters = []
+      while read < len
+        filter = read_utf8_string io
+        qos = io.readbyte
+        filters << [filter, qos]
+        read += (3 + filter.bytesize)
+      end
       app.on_subscribe self, io, packet_id:, properties:, filters:
     end
 

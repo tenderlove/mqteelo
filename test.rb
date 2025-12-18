@@ -99,6 +99,11 @@ class App
   def on_disconnect conn, io, reason:, properties:
     io.close
   end
+
+  def on_subscribe conn, io, packet_id:, properties:, filters:
+    p packet_id
+    p filters
+  end
 end
 
 def handle_request(fd, app)
