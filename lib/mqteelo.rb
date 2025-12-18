@@ -101,6 +101,20 @@ module MQTeelo
       end
     end
 
+    def send_subscribe io, packet_id:, properties:, filters:
+      packet = "".b
+      encode_2byte_int(packet_id, packet)
+      encode_properties(properties, packet)
+      filters.each { |filter, qos|
+        encode_utf8_string(filter, packet)
+        packet << qos.chr
+      }
+      io.putc Packets::SUBSCRIBE
+      encode_varint2(packet.bytesize, io)
+      io.write packet
+      io.flush
+    end
+
     private
 
     def encode_properties props, packet
@@ -111,6 +125,16 @@ module MQTeelo
       end
       encode_varint(buf.bytesize, packet)
       packet << buf
+    end
+
+    def handle_subscribe app, io, flags, len
+      packet_id = read_2byte_int(io)
+      prop_len = read_varint(io)
+      properties = subscribe_properties io, prop_len
+      filter = read_utf8_string io
+      qos = io.readbyte
+      filters = [[filter, qos]]
+      app.on_subscribe self, io, packet_id:, properties:, filters:
     end
 
     def handle_publish app, io, flags, len

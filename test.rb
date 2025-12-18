@@ -3,8 +3,6 @@ require "mqteelo"
 require "securerandom"
 require "stringio"
 
-server = TCPServer.new("127.0.0.1", 1883)
-
 class PacketSnoop
   include MQTeelo::Utils
 
@@ -23,6 +21,10 @@ class PacketSnoop
   end
 
   def read size
+    if size == 0
+      return ""
+    end
+
     raise "fixme" if @buffer.string.empty?
     x = @buffer.read size
     if @buffer.eof?
@@ -36,14 +38,26 @@ class PacketSnoop
     @buffer.flush
   end
 
+  def close
+    @io.close
+  end
+
+  def inspect
+    @buffer.string.bytes.map { |x| sprintf("%02x", x) }.join(" ") + "\n" +
+      ("   " * @buffer.pos) + "^\n" + super
+  end
+
   def readbyte
     # read packet
     x = if @buffer.string.empty?
       byte = @io.readbyte
+      p ID: byte
       @buffer.putc byte
       len = read_varint(@io)
+      p len: len
       encode_varint2(len, @buffer)
       str = @io.read len
+      p str
       @buffer << str
       @packets << @buffer.string.dup
       @buffer.rewind
@@ -81,17 +95,25 @@ class App
   def on_publish conn, io, dup:, qos:, retain:, topic:, packet_id:, properties:, payload:
     p topic => payload
   end
+
+  def on_disconnect conn, io, reason:, properties:
+    io.close
+  end
 end
 
 def handle_request(fd, app)
   request_ractor = Ractor.new(fd, app) do |fd, app|
-    s = IO.for_fd(fd)
-    s = PacketSnoop.new(s)
+    io = IO.for_fd(fd)
+    s = PacketSnoop.new(io)
+    #s = io
     conn = MQTeelo::Connection.new
     begin
-      loop do
+      while !io.closed?
         conn.receive app, s
       end
+    rescue EOFError
+      io.close
+      puts "done"
     rescue
       p s
       raise
@@ -101,6 +123,8 @@ def handle_request(fd, app)
     end
   end
 end
+
+server = TCPServer.new("127.0.0.1", 1883)
 
 app = App.new.freeze
 accept_ractor = Ractor.new(server, app) do |server, app|
