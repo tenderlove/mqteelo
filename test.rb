@@ -55,7 +55,7 @@ class PacketSnoop
       @buffer.putc byte
       len = read_varint(@io)
       p len: len
-      encode_varint2(len, @buffer)
+      encode_varint(len, @buffer)
       str = @io.read len
       p str
       @buffer << str
