@@ -52,7 +52,7 @@ module MQTeelo
       encode_utf8_string(password, packet) if password
 
       io.putc Packets::CONNECT
-      encode_varint2(packet.bytesize, io)
+      encode_varint(packet.bytesize, io)
       io.write packet
       io.flush
     end
@@ -67,7 +67,7 @@ module MQTeelo
       [reason].pack("C", buffer: packet)
       encode_properties(properties, packet)
       io.putc Packets::CONNACK
-      encode_varint2(packet.bytesize, io)
+      encode_varint(packet.bytesize, io)
       io.write packet
       io.flush
     end
@@ -87,7 +87,7 @@ module MQTeelo
       len = packet.bytesize + payload.bytesize
 
       io.putc Packets::PUBLISH | flags
-      encode_varint2(len, io)
+      encode_varint(len, io)
       io.write packet
       io.write payload
       io.flush
@@ -111,7 +111,7 @@ module MQTeelo
         packet << qos.chr
       }
       io.putc Packets::SUBSCRIBE
-      encode_varint2(packet.bytesize, io)
+      encode_varint(packet.bytesize, io)
       io.write packet
       io.flush
     end
@@ -124,8 +124,7 @@ module MQTeelo
         buf << id
         encode_property(id, val, buf)
       end
-      encode_varint(buf.bytesize, packet)
-      packet << buf
+      [buf.bytesize, buf].pack("Ra*", buffer: packet)
     end
 
     def handle_subscribe app, io, flags, buffer

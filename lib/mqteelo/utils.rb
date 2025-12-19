@@ -34,22 +34,12 @@ module MQTeelo
     end
     alias :encode_binary_string :encode_utf8_string
 
-    def encode_varint value, out
+    def encode_varint value, io
       while true
         enc_byte = value % 0x80
         value /= 0x80
         enc_byte |= 0x80 if value > 0
-        out << (enc_byte & 0xFF).chr
-        break unless value > 0
-      end
-    end
-
-    def encode_varint2 value, out
-      while true
-        enc_byte = value % 0x80
-        value /= 0x80
-        enc_byte |= 0x80 if value > 0
-        out.putc(enc_byte & 0xFF)
+        io.putc(enc_byte & 0xFF)
         break unless value > 0
       end
     end
