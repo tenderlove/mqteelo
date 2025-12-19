@@ -58,6 +58,10 @@ module MQTeelo
       def on_subscribe _, _, packet_id:, properties:, filters:
         @events << { packet_id:, properties:, filters: }
       end
+
+      def on_suback _, _, packet_id:, properties:, payload:
+        @events << { packet_id:, properties:, payload: }
+      end
     end
 
     class Echo
@@ -84,6 +88,10 @@ module MQTeelo
 
       def on_subscribe(_, _, ...)
         @conn.send_subscribe(@out_io, ...)
+      end
+
+      def on_suback(_, _, ...)
+        @conn.send_suback(@out_io, ...)
       end
     end
 
@@ -178,6 +186,18 @@ module MQTeelo
       assert_predicate io, :eof?
       assert_equal 1, app.events.length
       assert_equal [{reason: 129, properties: nil}], app.events
+      assert_roundtrip bytes
+    end
+
+    def test_suback
+      bytes = "\x90\x04\x00\x01\x00\x00".b.freeze
+      io = StringIO.new bytes
+      app = App.new
+      conn = make_connection
+      conn.receive app, io
+      assert_predicate io, :eof?
+      assert_equal 1, app.events.length
+      assert_equal [{packet_id: 1, properties: [], payload: 0}], app.events
       assert_roundtrip bytes
     end
 

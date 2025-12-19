@@ -175,8 +175,12 @@ read += encoded_varint_len(val)
     "Variable Byte Integer" => VARINT,
   }
   TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
+NONE = [].freeze
   <%- props.each do |type, values| -%>
+
 def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> buffer, offset, len
+  return NONE unless len.positive?
+
   read = 0
   properties = []
   while read < len

@@ -278,7 +278,11 @@ module MQTeelo
       end
     end
 
+    NONE = [].freeze
+
     def publish_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -339,7 +343,10 @@ module MQTeelo
       properties
     end
 
+
     def will_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -396,7 +403,10 @@ module MQTeelo
       properties
     end
 
+
     def subscribe_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -427,7 +437,10 @@ module MQTeelo
       properties
     end
 
+
     def connect_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -490,7 +503,10 @@ module MQTeelo
       properties
     end
 
+
     def connack_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -593,7 +609,10 @@ module MQTeelo
       properties
     end
 
+
     def disconnect_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -636,7 +655,10 @@ module MQTeelo
       properties
     end
 
+
     def auth_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -681,7 +703,10 @@ module MQTeelo
       properties
     end
 
+
     def puback_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -713,8 +738,11 @@ module MQTeelo
       end
       properties
     end
+
 
     def pubrec_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -746,8 +774,11 @@ module MQTeelo
       end
       properties
     end
+
 
     def pubrel_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -779,8 +810,11 @@ module MQTeelo
       end
       properties
     end
+
 
     def pubcomp_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -812,8 +846,11 @@ module MQTeelo
       end
       properties
     end
+
 
     def suback_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -845,8 +882,11 @@ module MQTeelo
       end
       properties
     end
+
 
     def unsuback_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len
@@ -879,7 +919,10 @@ module MQTeelo
       properties
     end
 
+
     def unsubscribe_properties buffer, offset, len
+      return NONE unless len.positive?
+
       read = 0
       properties = []
       while read < len

@@ -120,6 +120,17 @@ module MQTeelo
       io.flush
     end
 
+    def send_suback io, packet_id:, properties:, payload:
+      packet = [packet_id].pack("n")
+      encode_properties(properties, packet)
+      packet << payload.chr
+
+      io.putc Packets::SUBACK
+      encode_varint(packet.bytesize, io)
+      io.write packet
+      io.flush
+    end
+
     private
 
     def encode_properties props, packet
@@ -147,6 +158,15 @@ module MQTeelo
         filters << [filter, qos]
       end
       app.on_subscribe self, io, packet_id:, properties:, filters:
+    end
+
+    def handle_suback app, io, flags, buffer
+      offset = 0
+      packet_id, prop_len = buffer.unpack("nR")
+      offset = encoded_varint_len(prop_len) + 2
+      properties = suback_properties buffer, offset, prop_len
+      payload = buffer.getbyte(offset + prop_len)
+      app.on_suback self, io, packet_id:, properties:, payload:
     end
 
     def handle_publish app, io, flags, buffer
