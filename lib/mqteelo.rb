@@ -35,16 +35,17 @@ module MQTeelo
       conn_flags |= 1 << 7 if username
 
       packet = "\x00\x04MQTT".b
-      [ version, conn_flags ].pack("CC", buffer: packet)
-      encode_2byte_int(keep_alive, packet)
+      [ version, conn_flags, keep_alive ].pack("CCn", buffer: packet)
 
       encode_properties(properties, packet)
       encode_utf8_string(client_id, packet)
 
       if will_topic
         encode_properties(will_properties, packet)
-        encode_utf8_string(will_topic, packet)
-        encode_binary_string(will_payload, packet)
+        [
+          will_topic.bytesize, will_topic,
+          will_payload.bytesize, will_payload
+        ].pack("na*na*", buffer: packet)
       end
 
       encode_utf8_string(username, packet) if username

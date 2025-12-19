@@ -30,8 +30,7 @@ module MQTeelo
     end
 
     def encode_utf8_string str, buffer
-      encode_2byte_int(str.bytesize, buffer)
-      buffer << str
+      [str.bytesize, str].pack("na*", buffer:)
     end
     alias :encode_binary_string :encode_utf8_string
 
