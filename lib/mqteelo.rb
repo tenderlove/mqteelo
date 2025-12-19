@@ -217,22 +217,23 @@ module MQTeelo
         client_id:, username:, password:
     end
 
-    def handle_disconnect app, io, flags, len
+    def handle_disconnect app, io, _, buffer
       if len.positive?
         raise NotImplementedError # we need a test for this
-        reason = io.readbyte
+        reason = buffer.getbyte(0)
         properties = disconnect_properties io, read_varint(io)
       end
 
       app.on_disconnect self, io, reason:, properties:
     end
 
-    def handle_connack app, io, _, _
-      flags = io.readbyte
+    def handle_connack app, io, _, buffer
+      flags = buffer.getbyte(0)
       raise if (flags & 0xFE).positive?
       session_present = flags[0].positive?
-      reason = io.readbyte
-      properties = self.connack_properties io, read_varint(io)
+      reason = buffer.getbyte(1)
+      proplen = buffer.unpack1("R", offset: 2)
+      properties = connack_properties buffer, encoded_varint_len(proplen) + 2, proplen
       app.on_connack self, io, session_present:, reason:, properties:
     end
   end
