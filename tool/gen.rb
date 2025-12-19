@@ -119,48 +119,51 @@ end
 
 class PropertyTemplate
   READBYTE = ERB.new(<<-eot, trim_mode: '-')
-val = io.readbyte
+val = buffer.getbyte(read + offset)
 read += 1
   eot
 
   TWOBYTE = ERB.new(<<-eot, trim_mode: '-')
-val = io.readbyte << 8 | io.readbyte
+val = buffer.unpack1("n", offset: read + offset)
 read += 2
   eot
 
   FOURBYTE = ERB.new(<<-eot, trim_mode: '-')
-val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+val = buffer.unpack1("N", offset: read + offset)
 read += 4
   eot
 
   STRING = ERB.new(<<-eot, trim_mode: '-')
-val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-read += (val.bytesize + 2)
+size = buffer.unpack1("n", offset: read + offset)
+read += 2
+val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+read += size
   eot
 
   STRING_PAIR = ERB.new(<<-eot, trim_mode: '-')
-val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-read += (val1.bytesize + 2)
-val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-read += (val2.bytesize + 2)
+size = buffer.unpack1("n", offset: read + offset)
+read += 2
+val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+read += size
+
+size = buffer.unpack1("n", offset: read + offset)
+read += 2
+val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+read += size
+
 val = [val1, val2]
   eot
 
   BINARY = ERB.new(<<-eot, trim_mode: '-')
-val = io.read(io.readbyte << 8 | io.readbyte)
-read += (val.bytesize + 2)
+size = buffer.unpack1("n", offset: read + offset)
+read += 2
+val = size.positive? ? buffer.byteslice(offset + read, size) : "".b
+read += size
   eot
 
   VARINT = ERB.new(<<-eot, trim_mode: '-')
-val = 0
-mult = 1
-while true
-  byte = io.readbyte
-  read += 1
-  val += (byte & 0x7F) * mult
-  break if (byte & 0x80).zero?
-  mult *= 128
-end
+val = buffer.unpack1("R", offset: read + offset)
+read += encoded_varint_len(val)
   eot
 
   LUT = {
@@ -174,11 +177,11 @@ end
   }
   TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
   <%- props.each do |type, values| -%>
-def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> io, len
+def <%= type.downcase.gsub(/ /, '_') %><%= type =~ /properties/i ? "" : "_properties" %> buffer, offset, len
   read = 0
   properties = []
   while read < len
-    id = io.readbyte
+    id = buffer.getbyte(read + offset)
     read += 1
     <%- values.each_with_index do |val, i| -%>
     <%= i == 0 ? "if" : "elsif" %> id == <%= sprintf("%#04x", val.ident) %> # <%= val.name %>

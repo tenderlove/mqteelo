@@ -10,7 +10,7 @@ module MQTeelo
       type = byte >> 4
       size = read_varint(io)
 
-      _handle app, io, type, flags, size
+      _handle app, io, type, flags, io.read(size)
     end
 
     def send_connect io,
@@ -168,14 +168,12 @@ module MQTeelo
       app.on_publish self, io, dup:, qos:, retain:, packet_id:, topic:, properties:, payload:
     end
 
-    def handle_connect app, io, flags, len
+    def handle_connect app, io, flags, buffer
       will_retain = false
       clean_start = false
 
-      io.read 6   # protocol name
-      version = io.readbyte # protocol version
+      _, version, conn_flags, keep_alive, prop_len = buffer.unpack("a6CCnR")
 
-      conn_flags = io.readbyte # connect flags
       if (conn_flags & (1 << 5)) > 0
         will_retain = true
       end
@@ -185,23 +183,34 @@ module MQTeelo
         clean_start = true
       end
 
-      keep_alive = read_2byte_int(io) # keep alive
+      offset = 6 + 1 + 1 + 2 + encoded_varint_len(prop_len)
 
-      properties = self.connect_properties io, read_varint(io)
+      properties = connect_properties buffer, offset, prop_len
 
-      client_id = read_utf8_string io
+      offset += prop_len
+
+      client_id = read_utf8_string buffer, offset
+
+      offset += (client_id.bytesize + 2)
 
       if (conn_flags & (1 << 2)) > 0
-        will_properties = will_properties io, read_varint(io)
-        will_topic = read_utf8_string io
-        will_payload = read_binary_string io
+        will_prop_len = buffer.unpack1("R", offset:)
+        offset += encoded_varint_len(will_prop_len)
+        will_properties = will_properties buffer, offset, will_prop_len
+        offset += will_prop_len
+        will_topic = read_utf8_string buffer, offset
+        offset += (will_topic.bytesize + 2)
+        will_payload = read_binary_string buffer, offset
+        offset += (will_payload.bytesize + 2)
       end
 
       if (conn_flags & (1 << 7)) > 0 # username
-        username = read_utf8_string io
+        username = read_utf8_string buffer, offset
+        offset += (username.bytesize + 2)
       end
       if (conn_flags & (1 << 6)) > 0 # password
-        password = read_utf8_string io
+        password = read_utf8_string buffer, offset
+        offset += (password.bytesize + 2)
       end
       app.on_connect self, io, version:, will_retain:, qos:, clean_start:, keep_alive:,
         properties:, will_properties:, will_topic:, will_payload:,

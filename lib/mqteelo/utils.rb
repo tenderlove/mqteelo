@@ -59,12 +59,14 @@ module MQTeelo
       (io.readbyte << 8) | io.readbyte
     end
 
-    def read_utf8_string io
-      io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
+    def read_utf8_string buffer, offset
+      len = buffer.unpack1("n", offset:)
+      buffer.byteslice(offset + 2, len).force_encoding('UTF-8')
     end
 
-    def read_binary_string io
-      io.read(io.readbyte << 8 | io.readbyte)
+    def read_binary_string buffer, offset
+      len = buffer.unpack1("n", offset:)
+      buffer.byteslice(offset + 2, len)
     end
   end
 end

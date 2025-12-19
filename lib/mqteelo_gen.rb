@@ -245,52 +245,57 @@ module MQTeelo
       end
     end
 
-    def publish_properties io, len
+    def publish_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x01 # Payload Format Indicator
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         elsif id == 0x02 # Message Expiry Interval
-            val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("N", offset: read + offset)
             read += 4
 
         elsif id == 0x03 # Content Type
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x08 # Response Topic
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x09 # Correlation Data
-            val = io.read(io.readbyte << 8 | io.readbyte)
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size) : "".b
+            read += size
 
         elsif id == 0x0b # Subscription Identifier
-            val = 0
-            mult = 1
-            while true
-              byte = io.readbyte
-              read += 1
-              val += (byte & 0x7F) * mult
-              break if (byte & 0x80).zero?
-              mult *= 128
-            end
+            val = buffer.unpack1("R", offset: read + offset)
+            read += encoded_varint_len(val)
 
         elsif id == 0x23 # Topic Alias
-            val = io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("n", offset: read + offset)
             read += 2
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -301,41 +306,53 @@ module MQTeelo
       properties
     end
 
-    def will_properties io, len
+    def will_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x01 # Payload Format Indicator
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         elsif id == 0x02 # Message Expiry Interval
-            val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("N", offset: read + offset)
             read += 4
 
         elsif id == 0x03 # Content Type
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x08 # Response Topic
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x09 # Correlation Data
-            val = io.read(io.readbyte << 8 | io.readbyte)
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size) : "".b
+            read += size
 
         elsif id == 0x18 # Will Delay Interval
-            val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("N", offset: read + offset)
             read += 4
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -346,28 +363,27 @@ module MQTeelo
       properties
     end
 
-    def subscribe_properties io, len
+    def subscribe_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x0b # Subscription Identifier
-            val = 0
-            mult = 1
-            while true
-              byte = io.readbyte
-              read += 1
-              val += (byte & 0x7F) * mult
-              break if (byte & 0x80).zero?
-              mult *= 128
-            end
+            val = buffer.unpack1("R", offset: read + offset)
+            read += encoded_varint_len(val)
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -378,49 +394,59 @@ module MQTeelo
       properties
     end
 
-    def connect_properties io, len
+    def connect_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x11 # Session Expiry Interval
-            val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("N", offset: read + offset)
             read += 4
 
         elsif id == 0x15 # Authentication Method
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x16 # Authentication Data
-            val = io.read(io.readbyte << 8 | io.readbyte)
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size) : "".b
+            read += size
 
         elsif id == 0x17 # Request Problem Information
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         elsif id == 0x19 # Request Response Information
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         elsif id == 0x21 # Receive Maximum
-            val = io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("n", offset: read + offset)
             read += 2
 
         elsif id == 0x22 # Topic Alias Maximum
-            val = io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("n", offset: read + offset)
             read += 2
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         elsif id == 0x27 # Maximum Packet Size
-            val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("N", offset: read + offset)
             read += 4
 
         else
@@ -431,81 +457,99 @@ module MQTeelo
       properties
     end
 
-    def connack_properties io, len
+    def connack_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x11 # Session Expiry Interval
-            val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("N", offset: read + offset)
             read += 4
 
         elsif id == 0x12 # Assigned Client Identifier
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x13 # Server Keep Alive
-            val = io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("n", offset: read + offset)
             read += 2
 
         elsif id == 0x15 # Authentication Method
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x16 # Authentication Data
-            val = io.read(io.readbyte << 8 | io.readbyte)
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size) : "".b
+            read += size
 
         elsif id == 0x1a # Response Information
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x1c # Server Reference
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x21 # Receive Maximum
-            val = io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("n", offset: read + offset)
             read += 2
 
         elsif id == 0x22 # Topic Alias Maximum
-            val = io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("n", offset: read + offset)
             read += 2
 
         elsif id == 0x24 # Maximum QoS
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         elsif id == 0x25 # Retain Available
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         elsif id == 0x27 # Maximum Packet Size
-            val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("N", offset: read + offset)
             read += 4
 
         elsif id == 0x28 # Wildcard Subscription Available
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         elsif id == 0x29 # Subscription Identifier Available
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         elsif id == 0x2a # Shared Subscription Available
-            val = io.readbyte
+            val = buffer.getbyte(read + offset)
             read += 1
 
         else
@@ -516,29 +560,39 @@ module MQTeelo
       properties
     end
 
-    def disconnect_properties io, len
+    def disconnect_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x11 # Session Expiry Interval
-            val = io.readbyte << 24 | io.readbyte << 16 | io.readbyte << 8 | io.readbyte
+            val = buffer.unpack1("N", offset: read + offset)
             read += 4
 
         elsif id == 0x1c # Server Reference
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -549,29 +603,41 @@ module MQTeelo
       properties
     end
 
-    def auth_properties io, len
+    def auth_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x15 # Authentication Method
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x16 # Authentication Data
-            val = io.read(io.readbyte << 8 | io.readbyte)
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size) : "".b
+            read += size
 
         elsif id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -582,21 +648,29 @@ module MQTeelo
       properties
     end
 
-    def puback_properties io, len
+    def puback_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -607,21 +681,29 @@ module MQTeelo
       properties
     end
 
-    def pubrec_properties io, len
+    def pubrec_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -632,21 +714,29 @@ module MQTeelo
       properties
     end
 
-    def pubrel_properties io, len
+    def pubrel_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -657,21 +747,29 @@ module MQTeelo
       properties
     end
 
-    def pubcomp_properties io, len
+    def pubcomp_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -682,21 +780,29 @@ module MQTeelo
       properties
     end
 
-    def suback_properties io, len
+    def suback_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -707,21 +813,29 @@ module MQTeelo
       properties
     end
 
-    def unsuback_properties io, len
+    def unsuback_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x1f # Reason String
-            val = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
 
         elsif id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
@@ -732,17 +846,23 @@ module MQTeelo
       properties
     end
 
-    def unsubscribe_properties io, len
+    def unsubscribe_properties buffer, offset, len
       read = 0
       properties = []
       while read < len
-        id = io.readbyte
+        id = buffer.getbyte(read + offset)
         read += 1
         if id == 0x26 # User Property
-            val1 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val1.bytesize + 2)
-            val2 = io.read(io.readbyte << 8 | io.readbyte).force_encoding('UTF-8')
-            read += (val2.bytesize + 2)
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val1 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
+            size = buffer.unpack1("n", offset: read + offset)
+            read += 2
+            val2 = size.positive? ? buffer.byteslice(offset + read, size).force_encoding('UTF-8') : ""
+            read += size
+
             val = [val1, val2]
 
         else
