@@ -169,6 +169,18 @@ module MQTeelo
       assert_roundtrip bytes
     end
 
+    def test_disconnect_with_reason
+      bytes = "\xE0\x01\x81".b.freeze
+      io = StringIO.new bytes
+      app = App.new
+      conn = make_connection
+      conn.receive app, io
+      assert_predicate io, :eof?
+      assert_equal 1, app.events.length
+      assert_equal [{reason: 129, properties: nil}], app.events
+      assert_roundtrip bytes
+    end
+
     def test_disconnect
       bytes = "\xE0\x00".b.freeze
       io = StringIO.new bytes

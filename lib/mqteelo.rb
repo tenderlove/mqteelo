@@ -94,7 +94,12 @@ module MQTeelo
 
     def send_disconnect io, reason:, properties:
       if reason
-        raise NotImplementedError
+        io.putc Packets::DISCONNECT
+        io.putc 1
+        io.putc reason
+        if properties
+          raise NotImplementedError
+        end
       else
         io.putc Packets::DISCONNECT
         io.putc 0
@@ -219,9 +224,11 @@ module MQTeelo
 
     def handle_disconnect app, io, _, buffer
       unless buffer.empty?
-        raise NotImplementedError # we need a test for this
         reason = buffer.getbyte(0)
-        properties = disconnect_properties io, read_varint(io)
+        if buffer.bytesize > 1
+          raise NotImplementedError # we need a test for this
+          properties = disconnect_properties io, read_varint(io)
+        end
       end
 
       app.on_disconnect self, io, reason:, properties:

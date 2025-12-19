@@ -81,6 +81,15 @@ TEMPLATE = ERB.new(<<-eot, trim_mode: '-')
 <%- reasons.each do |reason| -%>
 <%= reason.name.upcase.sub(/-/, '').tr(' ', '_') %> = <%= sprintf("%#04x", reason.value) %>
 <%- end -%>
+
+LIST = []
+<%- reasons.each do |reason| -%>
+LIST[<%= sprintf("%#04x", reason.value) %>] = <%= reason.name.dump %>
+<%- end -%>
+LIST.freeze
+def self.to_string id
+  LIST[id]
+end
 eot
   def self.result reasons, indent:
     TEMPLATE.result(binding).lines.map { |line| (" " * indent) + line }.map(&:rstrip).join("\n")

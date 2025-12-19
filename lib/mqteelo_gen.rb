@@ -75,6 +75,57 @@ module MQTeelo
     MAXIMUM_CONNECT_TIME = 0xa0
     SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED = 0xa1
     WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED = 0xa2
+
+    LIST = []
+    LIST[0000] = "Success"
+    LIST[0000] = "Normal disconnection"
+    LIST[0000] = "Granted QoS 0"
+    LIST[0x01] = "Granted QoS 1"
+    LIST[0x02] = "Granted QoS 2"
+    LIST[0x04] = "Disconnect with Will Message"
+    LIST[0x10] = "No matching subscribers"
+    LIST[0x11] = "No subscription existed"
+    LIST[0x18] = "Continue authentication"
+    LIST[0x19] = "Re-authenticate"
+    LIST[0x80] = "Unspecified error"
+    LIST[0x81] = "Malformed Packet"
+    LIST[0x82] = "Protocol Error"
+    LIST[0x83] = "Implementation specific error"
+    LIST[0x84] = "Unsupported Protocol Version"
+    LIST[0x85] = "Client Identifier not valid"
+    LIST[0x86] = "Bad User Name or Password"
+    LIST[0x87] = "Not authorized"
+    LIST[0x88] = "Server unavailable"
+    LIST[0x89] = "Server busy"
+    LIST[0x8a] = "Banned"
+    LIST[0x8b] = "Server shutting down"
+    LIST[0x8c] = "Bad authentication method"
+    LIST[0x8d] = "Keep Alive timeout"
+    LIST[0x8e] = "Session taken over"
+    LIST[0x8f] = "Topic Filter invalid"
+    LIST[0x90] = "Topic Name invalid"
+    LIST[0x91] = "Packet Identifier in use"
+    LIST[0x92] = "Packet Identifier not found"
+    LIST[0x93] = "Receive Maximum exceeded"
+    LIST[0x94] = "Topic Alias invalid"
+    LIST[0x95] = "Packet too large"
+    LIST[0x96] = "Message rate too high"
+    LIST[0x97] = "Quota exceeded"
+    LIST[0x98] = "Administrative action"
+    LIST[0x99] = "Payload format invalid"
+    LIST[0x9a] = "Retain not supported"
+    LIST[0x9b] = "QoS not supported"
+    LIST[0x9c] = "Use another server"
+    LIST[0x9d] = "Server moved"
+    LIST[0x9e] = "Shared Subscriptions not supported"
+    LIST[0x9f] = "Connection rate exceeded"
+    LIST[0xa0] = "Maximum connect time"
+    LIST[0xa1] = "Subscription Identifiers not supported"
+    LIST[0xa2] = "Wildcard Subscriptions not supported"
+    LIST.freeze
+    def self.to_string id
+      LIST[id]
+    end
   end
 
   module Packets
