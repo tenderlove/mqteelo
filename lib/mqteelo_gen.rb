@@ -106,43 +106,31 @@ module MQTeelo
         [value].pack("N", buffer: out)
 
       elsif id == 0x03
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x08
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x09
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x0b
-        while true
-          enc_byte = value % 0x80
-          value /= 0x80
-          enc_byte |= 0x80 if value > 0
-          out << (enc_byte & 0xFF).chr
-          break unless value > 0
-        end
+        [value].pack("R", buffer: out)
 
       elsif id == 0x11
         [value].pack("N", buffer: out)
 
       elsif id == 0x12
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x13
         [value].pack("n", buffer: out)
 
       elsif id == 0x15
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x16
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x17
         out << value
@@ -152,16 +140,13 @@ module MQTeelo
       elsif id == 0x19
         out << value
       elsif id == 0x1a
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x1c
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x1f
-        [value.bytesize].pack("n", buffer: out)
-        out << value
+        [value.bytesize, value].pack("na*", buffer: out)
 
       elsif id == 0x21
         [value].pack("n", buffer: out)
@@ -177,10 +162,7 @@ module MQTeelo
       elsif id == 0x25
         out << value
       elsif id == 0x26
-        [value[0].bytesize].pack("n", buffer: out)
-        out << value[0]
-        [value[1].bytesize].pack("n", buffer: out)
-        out << value[1]
+        [value[0].bytesize, value[0], value[1].bytesize, value[1]].pack("na*na*", buffer: out)
 
       elsif id == 0x27
         [value].pack("N", buffer: out)

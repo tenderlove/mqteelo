@@ -39,27 +39,17 @@ class EncodeProperty
   eot
 
   STRING = <<-eot
-[value.bytesize].pack("n", buffer: out)
-out << value
+[value.bytesize, value].pack("na*", buffer: out)
   eot
 
   STRING_PAIR = <<-eot
-[value[0].bytesize].pack("n", buffer: out)
-out << value[0]
-[value[1].bytesize].pack("n", buffer: out)
-out << value[1]
+[value[0].bytesize, value[0], value[1].bytesize, value[1]].pack("na*na*", buffer: out)
   eot
 
   BINARY = STRING
 
   VARINT = <<-eot
-while true
-  enc_byte = value % 0x80
-  value /= 0x80
-  enc_byte |= 0x80 if value > 0
-  out << (enc_byte & 0xFF).chr
-  break unless value > 0
-end
+[value].pack("R", buffer: out)
   eot
 
   LUT = {
