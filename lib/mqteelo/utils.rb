@@ -55,10 +55,6 @@ module MQTeelo
       end
     end
 
-    def read_2byte_int io
-      (io.readbyte << 8) | io.readbyte
-    end
-
     def read_utf8_string buffer, offset
       len = buffer.unpack1("n", offset:)
       buffer.byteslice(offset + 2, len).force_encoding('UTF-8')

@@ -145,25 +145,27 @@ module MQTeelo
       app.on_subscribe self, io, packet_id:, properties:, filters:
     end
 
-    def handle_publish app, io, flags, len
+    def handle_publish app, io, flags, buffer
       dup = flags[3].positive?
       qos = (flags >> 1) & 0x3
       retain = flags[0].positive?
-      topic = read_utf8_string io
+
+      topic = read_utf8_string buffer, 0
+      offset = topic.bytesize + 2
+
       packet_id = nil
       if qos.positive?
-        packet_id = read_2byte_int(io)
+        packet_id = buffer.unpack1("n", offset:)
+        offset += 2
       end
-      prop_len = read_varint(io)
-      properties = publish_properties io, prop_len
+      prop_len = buffer.unpack1("R", offset:)
+      offset += encoded_varint_len(prop_len)
 
-      remaining = len -
-        (prop_len +
-          encoded_varint_len(prop_len) +
-          encoded_utf8_len(topic) +
-          (qos.positive? ? 1 : 0))
+      properties = publish_properties buffer, offset, prop_len
+      offset += prop_len
 
-      payload = io.read remaining
+      remaining = buffer.bytesize - offset
+      payload = buffer.byteslice(offset, remaining)
       app.on_publish self, io, dup:, qos:, retain:, packet_id:, topic:, properties:, payload:
     end
 
@@ -217,7 +219,7 @@ module MQTeelo
     end
 
     def handle_disconnect app, io, _, buffer
-      if len.positive?
+      unless buffer.empty?
         raise NotImplementedError # we need a test for this
         reason = buffer.getbyte(0)
         properties = disconnect_properties io, read_varint(io)
