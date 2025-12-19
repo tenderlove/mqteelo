@@ -75,11 +75,10 @@ module MQTeelo
     def send_publish io, dup:, qos:, retain:, topic:, packet_id:, properties:, payload:
       flags = (dup ? 0x8 : 0x0) | (qos << 1) | (retain ? 0x1 : 0)
 
-      packet = "".b
-      encode_utf8_string(topic, packet)
+      packet = [topic.bytesize, topic].pack("na*")
 
       if qos.positive?
-        encode_2byte_int(packet_id, packet)
+        [packet_id].pack("n", buffer: packet)
       end
 
       encode_properties(properties, packet)
@@ -104,7 +103,7 @@ module MQTeelo
 
     def send_subscribe io, packet_id:, properties:, filters:
       packet = "".b
-      encode_2byte_int(packet_id, packet)
+      [packet_id].pack("n", buffer: packet)
       encode_properties(properties, packet)
       filters.each { |filter, qos|
         encode_utf8_string(filter, packet)

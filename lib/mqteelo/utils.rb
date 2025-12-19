@@ -9,10 +9,6 @@ module MQTeelo
       4
     end
 
-    def encoded_utf8_len str
-      str.bytesize + 2
-    end
-
     def read_varint io
       value = 0
       mult = 1
@@ -23,10 +19,6 @@ module MQTeelo
         mult *= 128
       end
       value
-    end
-
-    def encode_2byte_int int, buffer
-      [int].pack("n", buffer:)
     end
 
     def encode_utf8_string str, buffer
